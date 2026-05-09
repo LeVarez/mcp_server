@@ -373,8 +373,6 @@ if __name__ == "__main__":
         from starlette.responses import JSONResponse, Response
         from starlette.routing import Route
 
-        AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "")
-
         async def health(request):
             return JSONResponse({"status": "ok", "server": "market-data"})
 
@@ -383,22 +381,6 @@ if __name__ == "__main__":
 
         # Add health route
         app.routes.insert(0, Route("/health", health))
-
-        # Add auth middleware if token is set
-        if AUTH_TOKEN:
-            from starlette.middleware import Middleware
-            from starlette.middleware.base import BaseHTTPMiddleware
-
-            class BearerAuthMiddleware(BaseHTTPMiddleware):
-                async def dispatch(self, request, call_next):
-                    if request.url.path == "/health":
-                        return await call_next(request)
-                    auth = request.headers.get("authorization", "")
-                    if auth == f"Bearer {AUTH_TOKEN}":
-                        return await call_next(request)
-                    return Response("Unauthorized", status_code=401)
-
-            app.add_middleware(BearerAuthMiddleware)
 
         port = int(os.environ.get("PORT", 8000))
         uvicorn.run(app, host="0.0.0.0", port=port, forwarded_allow_ips="*")
