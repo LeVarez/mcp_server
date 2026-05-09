@@ -371,8 +371,26 @@ if __name__ == "__main__":
     if transport == "streamable-http":
         import uvicorn
         from starlette.applications import Starlette
-        from starlette.responses import JSONResponse
+        from starlette.responses import JSONResponse, Response
         from starlette.routing import Route, Mount
+        from starlette.middleware import Middleware
+        from starlette.middleware.base import BaseHTTPMiddleware
+
+        AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "")
+
+        class BearerAuthMiddleware(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                # Health endpoint is public (Railway needs it)
+                if request.url.path == "/health":
+                    return await call_next(request)
+                # If no token configured, allow all (local dev)
+                if not AUTH_TOKEN:
+                    return await call_next(request)
+                # Check bearer token
+                auth = request.headers.get("authorization", "")
+                if auth == f"Bearer {AUTH_TOKEN}":
+                    return await call_next(request)
+                return Response("Unauthorized", status_code=401)
 
         async def health(request):
             return JSONResponse({"status": "ok", "server": "market-data"})
@@ -380,11 +398,14 @@ if __name__ == "__main__":
         # Get the MCP ASGI app
         mcp_app = mcp.streamable_http_app()
 
-        # Wrap with health endpoint
-        app = Starlette(routes=[
-            Route("/health", health),
-            Mount("/", app=mcp_app),
-        ])
+        # Wrap with health + auth
+        app = Starlette(
+            routes=[
+                Route("/health", health),
+                Mount("/", app=mcp_app),
+            ],
+            middleware=[Middleware(BearerAuthMiddleware)],
+        )
 
         port = int(os.environ.get("PORT", 8000))
         uvicorn.run(app, host="0.0.0.0", port=port)
