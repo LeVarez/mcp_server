@@ -367,4 +367,26 @@ if __name__ == "__main__":
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
     if "--remote" in sys.argv:
         transport = "streamable-http"
-    mcp.run(transport=transport)
+
+    if transport == "streamable-http":
+        import uvicorn
+        from starlette.applications import Starlette
+        from starlette.responses import JSONResponse
+        from starlette.routing import Route, Mount
+
+        async def health(request):
+            return JSONResponse({"status": "ok", "server": "market-data"})
+
+        # Get the MCP ASGI app
+        mcp_app = mcp.streamable_http_app()
+
+        # Wrap with health endpoint
+        app = Starlette(routes=[
+            Route("/health", health),
+            Mount("/", app=mcp_app),
+        ])
+
+        port = int(os.environ.get("PORT", 8000))
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    else:
+        mcp.run()
