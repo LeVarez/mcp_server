@@ -75,6 +75,7 @@ def _fetch(params: dict) -> dict:
 mcp = FastMCP(
     "market-data",
     streamable_http_path="/api/mcp",
+    transport_security={"enable_dns_rebinding_protection": False},
     instructions="""Market data tools powered by Alpha Vantage API.
 
 Use `get_full(ticker)` to get all data for a ticker in one call (price, PE, EPS,
